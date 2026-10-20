@@ -35,10 +35,11 @@ const box = 'h-[56px] w-full rounded-[10px] bg-white px-[16px] text-[16px] outli
 export const TextInput = ({ invalid, ...props }) => <input {...props} className={`${box} ${invalid ? 'ring-2 ring-danger' : ''}`} />
 
 /** +966 ثم الرقم (من اليسار لليمين متل Figma) */
-export function PhoneInput({ value, onChange }) {
+/** [dial] مفتاح الدولة المختارة (+966 افتراضياً) */
+export function PhoneInput({ value, onChange, dial = '+966' }) {
   return (
     <div className="flex h-[64px] w-full overflow-hidden rounded-[10px] bg-white" dir="ltr">
-      <span className="flex w-[82px] items-center justify-center bg-[#F5F7F7] text-[20px] text-hint">+966</span>
+      <span className="flex w-[82px] items-center justify-center bg-[#F5F7F7] text-[20px] text-hint">{dial}</span>
       <input value={value} onChange={(e) => onChange(e.target.value.replace(/[^\d ]/g, ''))} placeholder="5x xxx xxxx" inputMode="tel" className="flex-1 bg-transparent px-[22px] text-[18px] outline-none" />
     </div>
   )

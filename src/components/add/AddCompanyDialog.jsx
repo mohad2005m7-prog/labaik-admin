@@ -12,6 +12,9 @@ import { DateInput, Field, FilePicker, PhoneInput, Row, Section, Select, TextInp
 // بيتبعت POST /admin/companies (CreateCompanyCommand):
 //   name · commercialRegistrationNumber · contactFullName · ownerEmail مطلوبين
 //   ownerEmail = «البريد الإلكتروني الرسمي» (هو اللي بيوصله إيميل الدخول وكلمة المرور المؤقتة من الخادم)
+//   الدولة برمز ISO (زي التطبيق) ومفتاح الهاتف حسبها
+//   temporaryPassword / forcePasswordChange / sendCredentialsByEmail بينبعتوا — الخادم لسا ما بيقرأهم (ملف إبراهيم بند 2)
+//   فلحد ما يدعمهم: الكلمة الصالحة هي اللي بيبعتها الخادم على البريد (مكتوب تحت الحقل)
 // الاشتراك سنوي: النهاية = البداية + سنة
 // -------------------------------------------------------------
 const CATEGORIES = [
@@ -20,7 +23,32 @@ const CATEGORIES = [
   [Category.Umrah, 'عمرة فقط'],
 ]
 
+// [رمز ISO، الاسم، مفتاح الهاتف]
+const COUNTRIES = [
+  ['SA', 'السعودية', '+966'],
+  ['PS', 'فلسطين', '+970'],
+  ['JO', 'الأردن', '+962'],
+  ['EG', 'مصر', '+20'],
+  ['AE', 'الإمارات', '+971'],
+  ['QA', 'قطر', '+974'],
+  ['KW', 'الكويت', '+965'],
+  ['BH', 'البحرين', '+973'],
+  ['OM', 'عُمان', '+968'],
+  ['IQ', 'العراق', '+964'],
+  ['LB', 'لبنان', '+961'],
+  ['SY', 'سوريا', '+963'],
+  ['YE', 'اليمن', '+967'],
+  ['TR', 'تركيا', '+90'],
+  ['MA', 'المغرب', '+212'],
+  ['DZ', 'الجزائر', '+213'],
+  ['TN', 'تونس', '+216'],
+  ['LY', 'ليبيا', '+218'],
+  ['SD', 'السودان', '+249'],
+]
+
 const empty = () => ({
+  country: 'SA',
+  city: '',
   name: '',
   category: Category.HajjAndUmrah,
   officialEmail: '',
@@ -68,7 +96,9 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
       return
     }
     const num = (v) => (String(v).trim() === '' ? null : Number(v))
-    const phone = (v) => (v.trim() ? `+966${v.replace(/\s/g, '')}` : null)
+    const dial = COUNTRIES.find(([code]) => code === f.country)?.[2] ?? '+966'
+    // الرقم بلا صفر البداية (05x → 5x) بعد مفتاح الدولة
+    const phone = (v) => (v.trim() ? `${dial}${v.replace(/\s/g, '').replace(/^0+/, '')}` : null)
     setSaving(true)
     try {
       await createCompany({
@@ -79,7 +109,8 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
         category: f.category,
         officialEmail: f.officialEmail.trim(),
         primaryPhone: phone(f.phone),
-        country: 'SA',
+        country: f.country,
+        city: f.city.trim() || null,
         vatId: f.vat.trim() || null,
         contractReferenceNumber: f.reference.trim() || null,
         subscriptionPrice: num(f.price),
@@ -90,6 +121,9 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
         maxPilgrims: num(f.maxPilgrims),
         contactJobTitle: f.jobTitle.trim() || null,
         contactMobile: phone(f.mobile),
+        temporaryPassword: password,
+        forcePasswordChange: f.forceChange,
+        sendCredentialsByEmail: f.sendEmail,
       })
       onCreated()
     } catch (e) {
@@ -151,8 +185,17 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
             </Field>
           </Row>
 
+          <Row>
+            <Field label="الدولة">
+              <Select value={f.country} options={COUNTRIES.map(([code, name]) => [code, name])} onChange={set('country')} />
+            </Field>
+            <Field label="المدينة">
+              <TextInput value={f.city} onChange={set('city')} placeholder="مثال: مكة المكرمة" />
+            </Field>
+          </Row>
+
           <Field label="رقم الهاتف الأساسي" className="w-full">
-            <PhoneInput value={f.phone} onChange={set('phone')} />
+            <PhoneInput value={f.phone} onChange={set('phone')} dial={COUNTRIES.find(([code]) => code === f.country)?.[2]} />
           </Field>
         </Section>
 
@@ -225,7 +268,7 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
             </Field>
           </Row>
           <Field label="رقم جوال المسؤول" className="w-full">
-            <PhoneInput value={f.mobile} onChange={set('mobile')} />
+            <PhoneInput value={f.mobile} onChange={set('mobile')} dial={COUNTRIES.find(([code]) => code === f.country)?.[2]} />
           </Field>
         </Section>
 
@@ -251,6 +294,9 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
             </div>
             <span className="text-[22px]">قوية جداً</span>
           </div>
+          <p className="m-0 text-[16px] leading-[26px] text-muted">
+            ملاحظة: الخادم حالياً يولّد كلمة مرور خاصة به ويرسلها إلى البريد الرسمي للشركة، فالكلمة الصالحة هي التي تصل على البريد إلى أن يدعم الخادم الكلمة المكتوبة هنا.
+          </p>
           <div className="mt-[20px] flex flex-col gap-[16px] text-[20px]">
             <Check checked={f.forceChange} onChange={set('forceChange')}>
               إجبار الشركة على تغيير كلمة المرور فور أول تسجيل دخول
