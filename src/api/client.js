@@ -89,7 +89,10 @@ export async function api(path, { method = 'GET', body, auth = true, retry = tru
   }
   if (res.status === 204) return null
   const text = await res.text()
-  return text ? JSON.parse(text) : null
+  if (!text) return null
+  // رد HTML بدل JSON = الطلب ما وصل لسيرفر لبيك (إعداد Rewrite ناقص على الاستضافة)
+  if (!(res.headers.get('content-type') ?? '').includes('json')) throw new ApiError(502, 'NotConnected', 'not json')
+  return JSON.parse(text)
 }
 
 /** رسالة عربية للخطأ — حسب code ثم status */
@@ -102,6 +105,12 @@ export function errorText(error) {
     'Company.ContractEndBeforeStart': 'تاريخ الانتهاء قبل تاريخ البدء',
     'Company.NotFound': 'الشركة غير موجودة',
     Network: 'تعذّر الاتصال بالخادم، حاول مرة أخرى',
+    NotConnected: 'لوحة التحكم غير متصلة بالخادم (إعداد Rewrite على الاستضافة)',
+    'Otp.Invalid': 'رمز التحقق غير صحيح',
+    'Otp.Expired': 'انتهت صلاحية الرمز، اطلب رمزاً جديداً',
+    'Otp.TooManyAttempts': 'محاولات كثيرة، اطلب رمزاً جديداً',
+    'Otp.Throttled': 'انتظر قليلاً قبل طلب رمز جديد',
+    'Auth.ResetFailed': 'تعذّر تغيير كلمة المرور، تحقق من الرمز',
   }
   if (error?.code && byCode[error.code]) return byCode[error.code]
   if (error?.status === 403) return 'هذا الحساب لا يملك صلاحية لوحة التحكم'

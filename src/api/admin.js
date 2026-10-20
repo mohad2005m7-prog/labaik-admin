@@ -1,4 +1,4 @@
-import { api, tokens } from './client'
+import { api, ApiError, tokens } from './client'
 
 // -------------------------------------------------------------
 // لوحة المالك — مسارات /admin (للـ Admin بس) + الدخول
@@ -21,9 +21,15 @@ export const SERVICES = [
 
 export async function login(email, password) {
   const result = await api('/auth/login', { method: 'POST', body: { email, password }, auth: false })
+  if (!result?.accessToken) throw new ApiError(502, 'NotConnected')
   tokens.set(result)
   return result
 }
+
+/** نسيت كلمة المرور: رمز من 6 أرقام بيوصل للإيميل (صالح 10 دقائق) */
+export const forgotPassword = (email) => api('/auth/forgot-password', { method: 'POST', body: { email }, auth: false })
+
+export const resetPassword = (email, code, newPassword) => api('/auth/reset-password', { method: 'POST', body: { email, code, newPassword }, auth: false })
 
 export const signOut = () => tokens.set(null)
 export const isSignedIn = () => Boolean(tokens.get()?.accessToken)
