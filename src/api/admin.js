@@ -51,7 +51,10 @@ export const stopCompany = (id) => api(`/admin/companies/${encodeURIComponent(id
 
 export const resumeCompany = (id) => api(`/admin/companies/${encodeURIComponent(id)}/resume`, { method: 'POST' })
 
-/** كلمة مرور مؤقتة جديدة لمالك الشركة — ⚠️ لسا مش موجودة على السيرفر (docs/ibrahim_pending_2026-10-19.md بند 7) */
+/** حذف الشركة — ⚠️ لسا مش موجود على السيرفر (docs إبراهيم: DELETE /admin/companies/{id}، حذف ناعم يعطّل حسابها ومشرفيها) */
+export const deleteCompany = (id) => api(`/admin/companies/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
+/** كلمة مرور مؤقتة جديدة لمالك الشركة — ⚠️ لسا مش موجودة على السيرفر (ملف إبراهيم النهائي بند 2) */
 export const issueTempPassword = (id) => api(`/admin/companies/${encodeURIComponent(id)}/temp-password`, { method: 'POST' })
 
 /** UpdateCompanyRequest = نفس النموذج بدون ownerEmail (استبدال كامل) — من AdminCompanyDto */
