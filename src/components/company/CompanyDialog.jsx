@@ -29,6 +29,9 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
   const [confirmName, setConfirmName] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteNotice, setDeleteNotice] = useState('')
+  // الخادم رفض لأن في رحلات جارية → بنعرض «حذف رغم ذلك» (force=true)
+  const [needsForce, setNeedsForce] = useState(false)
+  const [emailSent, setEmailSent] = useState(null)
 
   useEffect(() => {
     let alive = true
@@ -51,20 +54,26 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
     try {
       const r = await issueTempPassword(id)
       setPassword(r?.temporaryPassword ?? '')
+      setEmailSent(r?.emailSent ?? null)
     } catch (e) {
-      setNotice(e.status === 404 || e.status === 405 ? 'إصدار كلمة مؤقتة غير متاح على الخادم بعد' : errorText(e))
+      setNotice(e.status === 405 ? 'إصدار كلمة مؤقتة غير متاح على الخادم بعد' : errorText(e))
     }
   }
 
-  async function remove() {
+  async function remove(force = false) {
     if (!dto || confirmName.trim() !== dto.name.trim()) return
     setDeleting(true)
     setDeleteNotice('')
     try {
-      await deleteCompany(id)
+      await deleteCompany(id, force)
       onSaved()
     } catch (e) {
-      setDeleteNotice(e.status === 404 || e.status === 405 ? 'حذف الشركة غير متاح على الخادم بعد' : errorText(e))
+      if (e.code === 'Company.HasActiveTrips' && !force) {
+        setNeedsForce(true)
+        setDeleteNotice('لدى الشركة رحلات جارية الآن. الحذف سيوقف حسابها وحسابات مشرفيها أثناء الرحلة.')
+      } else {
+        setDeleteNotice(e.status === 405 ? 'حذف الشركة غير متاح على الخادم بعد' : errorText(e))
+      }
       setDeleting(false)
     }
   }
@@ -198,6 +207,12 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
             </div>
           </Card>
 
+          {password && emailSent !== null && (
+            <p className={`-mt-[14px] mb-0 text-[13px] ${emailSent ? 'text-okText' : 'text-danger'}`}>
+              {emailSent ? 'أُرسلت إلى بريد المالك أيضاً.' : 'تعذّر إرسال البريد، أرسلها للمالك بنفسك.'}
+            </p>
+          )}
+
           <Card>
             <Title>فترة الاشتراك</Title>
             <Sub>
@@ -228,7 +243,7 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
               />
               <button
                 type="button"
-                onClick={remove}
+                onClick={() => remove(false)}
                 disabled={deleting || confirmName.trim() !== dto.name.trim()}
                 className="h-[54px] w-[128px] shrink-0 rounded-[10px] bg-danger text-[18px] font-semibold text-white disabled:opacity-40"
               >
@@ -236,6 +251,16 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
               </button>
             </div>
             {deleteNotice && <p className="m-0 mt-[10px] text-[14px] text-danger">{deleteNotice}</p>}
+            {needsForce && (
+              <button
+                type="button"
+                onClick={() => remove(true)}
+                disabled={deleting || confirmName.trim() !== dto.name.trim()}
+                className="mt-[10px] h-[48px] w-full rounded-[10px] border border-danger bg-white text-[16px] font-semibold text-danger disabled:opacity-40"
+              >
+                {deleting ? 'جارٍ الحذف…' : 'حذف رغم وجود رحلات جارية'}
+              </button>
+            )}
           </Card>
 
           {notice && <p className="m-0 text-center text-[14px] text-danger">{notice}</p>}

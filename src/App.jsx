@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { companies as fetchCompanies, isSignedIn, overview as fetchOverview, resumeCompany, signOut, stopCompany } from './api/admin'
+import { companies as fetchCompanies, isSignedIn, mustChangePassword, overview as fetchOverview, resumeCompany, signOut, stopCompany } from './api/admin'
 import { errorText, tokens } from './api/client'
 import AddCompanyDialog from './components/add/AddCompanyDialog'
 import CompanyDialog from './components/company/CompanyDialog'
@@ -69,7 +69,7 @@ export default function App() {
     }
   }
 
-  if (!signedIn) return <Login onSignedIn={() => setSignedIn(true)} />
+  if (!signedIn) return <Login forceChange={mustChangePassword()} onSignedIn={() => setSignedIn(true)} />
 
   const user = tokens.get()?.user
   return (

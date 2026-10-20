@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Category, createCompany, YEARLY } from '../../api/admin'
-import { errorText } from '../../api/client'
+import { errorText, upload } from '../../api/client'
 import { arNum, dayDiff, latinDigits, plusYear, todayIso } from '../../lib/format'
 import { CheckIcon, CloseIcon, CopyIcon, ImageIcon, SearchIcon } from '../Icons'
 import Modal from '../Modal'
@@ -13,8 +13,9 @@ import { DateInput, Field, FilePicker, PhoneInput, Row, Section, Select, TextInp
 //   name · commercialRegistrationNumber · contactFullName · ownerEmail مطلوبين
 //   ownerEmail = «البريد الإلكتروني الرسمي» (هو اللي بيوصله إيميل الدخول وكلمة المرور المؤقتة من الخادم)
 //   الدولة برمز ISO (زي التطبيق) ومفتاح الهاتف حسبها
-//   temporaryPassword / forcePasswordChange / sendCredentialsByEmail بينبعتوا — الخادم لسا ما بيقرأهم (ملف إبراهيم بند 2)
-//   فلحد ما يدعمهم: الكلمة الصالحة هي اللي بيبعتها الخادم على البريد (مكتوب تحت الحقل)
+//   temporaryPassword (الكلمة المولّدة هون) / forcePasswordChange / sendCredentialsByEmail — الخادم بيستعملهم لحساب المالك الجديد
+//   والرد فيه temporaryPassword مرة وحدة — لو null فالبريد مسجّل من قبل والمالك بيدخل بكلمته الحالية
+//   الشعار والعقد بينرفعوا أول (POST /files) وبينبعت رابطهم logoUrl / contractFileUrl
 // الاشتراك سنوي: النهاية = البداية + سنة
 // -------------------------------------------------------------
 const CATEGORIES = [
@@ -77,8 +78,10 @@ function generatePassword() {
 export default function AddCompanyDialog({ onClose, onCreated }) {
   const [f, setF] = useState(empty)
   const [password, setPassword] = useState(generatePassword)
-  const [logoName, setLogoName] = useState('')
-  const [contractName, setContractName] = useState('')
+  const [logo, setLogo] = useState(null)
+  const [contract, setContract] = useState(null)
+  // الشركة انضافت بس البريد كان مسجّل (ما انعملت كلمة مؤقتة) — بنوضّح قبل ما نسكّر
+  const [linkedNotice, setLinkedNotice] = useState(false)
   const [tried, setTried] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -101,7 +104,8 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
     const phone = (v) => (v.trim() ? `${dial}${v.replace(/\s/g, '').replace(/^0+/, '')}` : null)
     setSaving(true)
     try {
-      await createCompany({
+      const [logoUrl, contractFileUrl] = await Promise.all([logo ? upload(logo) : null, contract ? upload(contract) : null])
+      const created = await createCompany({
         name: f.name.trim(),
         commercialRegistrationNumber: f.registration.trim(),
         contactFullName: f.contactName.trim(),
@@ -121,10 +125,17 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
         maxPilgrims: num(f.maxPilgrims),
         contactJobTitle: f.jobTitle.trim() || null,
         contactMobile: phone(f.mobile),
+        logoUrl,
+        contractFileUrl,
         temporaryPassword: password,
         forcePasswordChange: f.forceChange,
         sendCredentialsByEmail: f.sendEmail,
       })
+      if (created && !created.temporaryPassword) {
+        setLinkedNotice(true)
+        setSaving(false)
+        return
+      }
       onCreated()
     } catch (e) {
       setError(errorText(e))
@@ -156,7 +167,7 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
           </Field>
 
           <Field label="شعار الشركة" className="w-full">
-            <FilePicker accept="image/png,image/jpeg" fileName={logoName} onPick={(file) => setLogoName(file?.name ?? '')}>
+            <FilePicker accept="image/png,image/jpeg" fileName={logo?.name ?? ''} onPick={setLogo}>
               {(inputId, name) => (
                 <div className="flex h-[140px] items-center justify-between rounded-[12px] border border-[#D9D9D9] px-[12px]">
                   <div className="flex items-center gap-[20px]">
@@ -245,7 +256,7 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
             </Field>
           </Row>
           <Field label="ملف العقد المبرم (PDF)" className="w-full">
-            <FilePicker accept="application/pdf" fileName={contractName} onPick={(file) => setContractName(file?.name ?? '')}>
+            <FilePicker accept="application/pdf" fileName={contract?.name ?? ''} onPick={setContract}>
               {(inputId, name) => (
                 <div className="flex h-[56px] items-center justify-between rounded-[10px] bg-white px-[16px] text-[16px]">
                   <span className={name ? '' : 'text-hint'}>{name || 'لم يتم اختيار الملف'}</span>
@@ -294,9 +305,6 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
             </div>
             <span className="text-[22px]">قوية جداً</span>
           </div>
-          <p className="m-0 text-[16px] leading-[26px] text-muted">
-            ملاحظة: الخادم حالياً يولّد كلمة مرور خاصة به ويرسلها إلى البريد الرسمي للشركة، فالكلمة الصالحة هي التي تصل على البريد إلى أن يدعم الخادم الكلمة المكتوبة هنا.
-          </p>
           <div className="mt-[20px] flex flex-col gap-[16px] text-[20px]">
             <Check checked={f.forceChange} onChange={set('forceChange')}>
               إجبار الشركة على تغيير كلمة المرور فور أول تسجيل دخول
@@ -308,15 +316,28 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
         </Section>
 
         {error && <p className="m-0 text-center text-[18px] text-danger">{error}</p>}
+        {linkedNotice && (
+          <p className="m-0 text-center text-[18px] text-okText">
+            تمت إضافة الشركة. البريد الرسمي مسجّل مسبقاً في لبيك، فسيدخل المالك بكلمة مروره الحالية (لم تُستخدم الكلمة المؤقتة).
+          </p>
+        )}
 
-        <div className="flex gap-[8px] pr-[45px] pb-[40px] pl-[41px]">
-          <button type="button" disabled={saving} onClick={submit} className="h-[90px] flex-1 rounded-[12px] bg-brand text-[32px] font-bold text-white disabled:opacity-60">
-            {saving ? 'جارٍ الحفظ…' : 'حفظ وإضافة الشركة'}
-          </button>
-          <button type="button" onClick={onClose} className="h-[90px] w-[147px] rounded-[12px] border border-line bg-white text-[24px] text-muted">
-            إلغاء
-          </button>
-        </div>
+        {linkedNotice ? (
+          <div className="flex gap-[8px] pr-[45px] pb-[40px] pl-[41px]">
+            <button type="button" onClick={onCreated} className="h-[90px] flex-1 rounded-[12px] bg-brand text-[32px] font-bold text-white">
+              تم
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-[8px] pr-[45px] pb-[40px] pl-[41px]">
+            <button type="button" disabled={saving} onClick={submit} className="h-[90px] flex-1 rounded-[12px] bg-brand text-[32px] font-bold text-white disabled:opacity-60">
+              {saving ? 'جارٍ الحفظ…' : 'حفظ وإضافة الشركة'}
+            </button>
+            <button type="button" onClick={onClose} className="h-[90px] w-[147px] rounded-[12px] border border-line bg-white text-[24px] text-muted">
+              إلغاء
+            </button>
+          </div>
+        )}
       </div>
     </Modal>
   )

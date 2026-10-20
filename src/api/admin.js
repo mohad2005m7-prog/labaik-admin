@@ -31,8 +31,26 @@ export const forgotPassword = (email) => api('/auth/forgot-password', { method: 
 
 export const resetPassword = (email, code, newPassword) => api('/auth/reset-password', { method: 'POST', body: { email, code, newPassword }, auth: false })
 
-export const signOut = () => tokens.set(null)
-export const isSignedIn = () => Boolean(tokens.get()?.accessToken)
+/** تغيير كلمة المرور وأنا داخل — بيرجع توكنات جديدة (mustChangePassword: false) */
+export async function changePassword(currentPassword, newPassword) {
+  const result = await api('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } })
+  if (!result?.accessToken) throw new ApiError(502, 'NotConnected')
+  tokens.set(result)
+  return result
+}
+
+/** تسجيل الخروج: بنلغي الـ refreshToken على الخادم (بلا انتظار — لو فشل بنكمّل) */
+export function signOut() {
+  const refreshToken = tokens.get()?.refreshToken
+  tokens.set(null)
+  if (refreshToken) api('/auth/logout', { method: 'POST', body: { refreshToken }, auth: false }).catch(() => {})
+}
+
+/** داخل وما عليه تغيير كلمة مرور مؤقتة */
+export const isSignedIn = () => Boolean(tokens.get()?.accessToken) && !tokens.get()?.mustChangePassword
+
+/** دخل بكلمة مرور مؤقتة (حساب الأدمن الأول من الخادم مثلاً) ولسا ما غيّرها */
+export const mustChangePassword = () => Boolean(tokens.get()?.accessToken && tokens.get()?.mustChangePassword)
 
 /** AdminOverviewDto { pendingRequests, activeSubscriptions, subscriptionsExpiringIn30Days, activePilgrims, activeCompanies, totalCompanies } */
 export const overview = () => api('/admin/overview')
@@ -43,6 +61,7 @@ export const companies = () => api('/admin/companies')
 /** AdminCompanyDto (كل حقول النموذج + enabledServices, isStopped, status, daysRemaining, stats) */
 export const company = (id) => api(`/admin/companies/${encodeURIComponent(id)}`)
 
+/** بيرجع AdminCompanyDto + temporaryPassword (مرة وحدة، لو انعمل حساب جديد للمالك) */
 export const createCompany = (command) => api('/admin/companies', { method: 'POST', body: command })
 
 export const updateCompany = (id, request) => api(`/admin/companies/${encodeURIComponent(id)}`, { method: 'PUT', body: request })
@@ -51,10 +70,10 @@ export const stopCompany = (id) => api(`/admin/companies/${encodeURIComponent(id
 
 export const resumeCompany = (id) => api(`/admin/companies/${encodeURIComponent(id)}/resume`, { method: 'POST' })
 
-/** حذف الشركة — ⚠️ لسا مش موجود على السيرفر (docs إبراهيم: DELETE /admin/companies/{id}، حذف ناعم يعطّل حسابها ومشرفيها) */
-export const deleteCompany = (id) => api(`/admin/companies/${encodeURIComponent(id)}`, { method: 'DELETE' })
+/** حذف الشركة (حذف ناعم: بيعطّل حساب المالك ومشرفيها) — 409 Company.HasActiveTrips لو في رحلات جارية، إلا مع [force] */
+export const deleteCompany = (id, force = false) => api(`/admin/companies/${encodeURIComponent(id)}${force ? '?force=true' : ''}`, { method: 'DELETE' })
 
-/** كلمة مرور مؤقتة جديدة لمالك الشركة — ⚠️ لسا مش موجودة على السيرفر (ملف إبراهيم النهائي بند 2) */
+/** كلمة مرور مؤقتة جديدة لمالك الشركة: بتنبعت بالإيميل وبترجع مرة وحدة { temporaryPassword, emailSent } — بيُطلب منه يغيّرها بأول دخول */
 export const issueTempPassword = (id) => api(`/admin/companies/${encodeURIComponent(id)}/temp-password`, { method: 'POST' })
 
 /** UpdateCompanyRequest = نفس النموذج بدون ownerEmail (استبدال كامل) — من AdminCompanyDto */

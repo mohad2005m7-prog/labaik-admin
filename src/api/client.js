@@ -95,6 +95,32 @@ export async function api(path, { method = 'GET', body, auth = true, retry = tru
   return JSON.parse(text)
 }
 
+/** رفع ملف (multipart) — POST /files → { url } (صورة jpg/png/webp لحد 5MB، PDF لحد 10MB) */
+export async function upload(file, retry = true) {
+  const current = memory ?? tokens.get()
+  const body = new FormData()
+  body.append('file', file)
+  let res
+  try {
+    res = await fetch(`${BASE}/files`, { method: 'POST', headers: current?.accessToken ? { Authorization: `Bearer ${current.accessToken}` } : {}, body })
+  } catch {
+    throw new ApiError(0, 'Network', 'offline')
+  }
+  if (retry && (res.status === 401 || res.status === 403) && (await refresh())) return upload(file, false)
+  if (!res.ok) {
+    let problem = {}
+    try {
+      problem = await res.json()
+    } catch {
+      // جسم فاضي
+    }
+    throw new ApiError(res.status, problem.code, problem.title)
+  }
+  const result = await res.json()
+  if (!result?.url) throw new ApiError(502, 'NotConnected')
+  return result.url
+}
+
 /** رسالة عربية للخطأ — حسب code ثم status */
 export function errorText(error) {
   const byCode = {
@@ -111,7 +137,12 @@ export function errorText(error) {
     'Otp.TooManyAttempts': 'محاولات كثيرة، اطلب رمزاً جديداً',
     'Otp.Throttled': 'انتظر قليلاً قبل طلب رمز جديد',
     'Auth.ResetFailed': 'تعذّر تغيير كلمة المرور، تحقق من الرمز',
-    'Company.HasActiveTrips': 'لا يمكن حذف شركة لديها رحلات جارية',
+    'Company.HasActiveTrips': 'لدى الشركة رحلات جارية حالياً',
+    'File.UnsupportedType': 'نوع الملف غير مدعوم (الشعار PNG أو JPG، والعقد PDF)',
+    'File.TooLarge': 'حجم الملف كبير (الصورة حتى 5 ميجابايت، والـ PDF حتى 10)',
+    'Auth.PasswordChangeRequired': 'يجب تغيير كلمة المرور المؤقتة أولاً',
+    'Auth.AccountDisabled': 'هذا الحساب موقوف',
+    'Auth.ChangePasswordFailed': 'كلمة المرور الجديدة غير مقبولة: 8 أحرف على الأقل وفيها حرف كبير وصغير ورقم ورمز',
   }
   if (error?.code && byCode[error.code]) return byCode[error.code]
   if (error?.status === 403) return 'هذا الحساب لا يملك صلاحية لوحة التحكم'
