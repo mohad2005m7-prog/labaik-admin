@@ -111,9 +111,11 @@ export function errorText(error) {
     'Otp.TooManyAttempts': 'محاولات كثيرة، اطلب رمزاً جديداً',
     'Otp.Throttled': 'انتظر قليلاً قبل طلب رمز جديد',
     'Auth.ResetFailed': 'تعذّر تغيير كلمة المرور، تحقق من الرمز',
+    'Company.HasActiveTrips': 'لا يمكن حذف شركة لديها رحلات جارية',
   }
   if (error?.code && byCode[error.code]) return byCode[error.code]
   if (error?.status === 403) return 'هذا الحساب لا يملك صلاحية لوحة التحكم'
+  if (error?.status === 409) return 'لا يمكن تنفيذ العملية بحالة الشركة الحالية'
   if (error?.status === 422) return 'تحقق من الحقول المطلوبة'
   return 'حدث خطأ غير متوقع، حاول مرة أخرى'
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { SERVICES, company as fetchCompany, issueTempPassword, resumeCompany, stopCompany, toUpdateRequest, updateCompany, YEARLY } from '../../api/admin'
+import { Category, SERVICES, company as fetchCompany, deleteCompany, issueTempPassword, resumeCompany, stopCompany, toUpdateRequest, updateCompany, YEARLY } from '../../api/admin'
 import { errorText } from '../../api/client'
-import { plusYear, slashDate } from '../../lib/format'
+import { arNum, plusYear, slashDate } from '../../lib/format'
 import { CloseIcon, CopyIcon, PlusIcon } from '../Icons'
 import Modal from '../Modal'
 import StatusPill from '../StatusPill'
@@ -15,6 +15,7 @@ import { Logo } from '../dashboard/CompanyRow'
 //     حالة الحساب (130) · الخدمات المفعّلة (423) · كلمة مرور مؤقتة (196) · فترة الاشتراك (183)
 //   أسفل ثابت: إلغاء 182×62 + حفظ التغييرات 417×62
 // الاشتراك سنوي بس: زر «+ سنة» بيمدّ الانتهاء سنة من تاريخ الانتهاء الحالي
+// (مش بـ Figma) «بيانات الشركة» وأرقامها من AdminCompanyDto، و«حذف الشركة» بتأكيد اسمها
 // -------------------------------------------------------------
 export default function CompanyDialog({ id, onClose, onSaved }) {
   const [dto, setDto] = useState(null)
@@ -25,6 +26,9 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
   const [password, setPassword] = useState('')
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState(false)
+  const [confirmName, setConfirmName] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteNotice, setDeleteNotice] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -49,6 +53,19 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
       setPassword(r?.temporaryPassword ?? '')
     } catch (e) {
       setNotice(e.status === 404 || e.status === 405 ? 'إصدار كلمة مؤقتة غير متاح على الخادم بعد' : errorText(e))
+    }
+  }
+
+  async function remove() {
+    if (!dto || confirmName.trim() !== dto.name.trim()) return
+    setDeleting(true)
+    setDeleteNotice('')
+    try {
+      await deleteCompany(id)
+      onSaved()
+    } catch (e) {
+      setDeleteNotice(e.status === 404 || e.status === 405 ? 'حذف الشركة غير متاح على الخادم بعد' : errorText(e))
+      setDeleting(false)
     }
   }
 
@@ -114,6 +131,37 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
           </Card>
 
           <Card>
+            <Title>بيانات الشركة</Title>
+            <dl className="m-0 mt-[14px] grid grid-cols-2 gap-x-[24px] gap-y-[12px] text-[15px]">
+              <Info label="بريد المالك" value={dto.ownerEmail} ltr />
+              <Info label="السجل التجاري" value={dto.commercialRegistrationNumber} ltr />
+              <Info label="المسؤول" value={dto.contactFullName} />
+              <Info label="الهاتف" value={dto.primaryPhone || dto.contactMobile} ltr />
+              <Info label="الفئة" value={CATEGORY[dto.category]} />
+              <Info label="المدينة" value={[dto.city, COUNTRY[dto.country?.toUpperCase()] ?? dto.country].filter(Boolean).join('، ')} />
+            </dl>
+            <div className="mt-[18px] grid grid-cols-5 gap-[8px] text-center">
+              {[
+                ['رحلات', dto.stats?.tripsCount],
+                ['نشطة', dto.stats?.activeTripsCount],
+                ['مجموعات', dto.stats?.groupsCount],
+                ['مشرفون', dto.stats?.supervisorsCount],
+                ['معتمر نشط', dto.stats?.activePilgrims],
+              ].map(([label, n]) => (
+                <div key={label} className="rounded-[10px] bg-soft py-[10px]">
+                  <div className="text-[20px] leading-[28px] font-bold">{arNum(n)}</div>
+                  <div className="text-[12px] text-muted">{label}</div>
+                </div>
+              ))}
+            </div>
+            {(dto.maxPilgrims || dto.maxSupervisors) && (
+              <Sub>
+                الحد: {dto.maxPilgrims ? `${arNum(dto.maxPilgrims)} معتمر` : '—'} · {dto.maxSupervisors ? `${arNum(dto.maxSupervisors)} مشرف` : '—'}
+              </Sub>
+            )}
+          </Card>
+
+          <Card>
             <Title>الخدمات المفعّلة</Title>
             <Sub>فعّل أو أغلق الخدمات المتاحة لهذه الشركة.</Sub>
             <div className="mt-[18px] flex flex-col">
@@ -168,12 +216,48 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
             </div>
           </Card>
 
+          <Card className="border-danger/40">
+            <Title>حذف الشركة</Title>
+            <Sub>يُعطَّل حساب الشركة ومشرفيها ولا تظهر في اللوحة. للتأكيد اكتب اسم الشركة كما هو: «{dto.name}»</Sub>
+            <div className="mt-[16px] flex items-center gap-[11px]">
+              <input
+                value={confirmName}
+                onChange={(e) => setConfirmName(e.target.value)}
+                placeholder="اسم الشركة"
+                className="h-[54px] min-w-0 flex-1 rounded-[10px] border border-line px-[16px] text-[16px] outline-none focus:border-danger"
+              />
+              <button
+                type="button"
+                onClick={remove}
+                disabled={deleting || confirmName.trim() !== dto.name.trim()}
+                className="h-[54px] w-[128px] shrink-0 rounded-[10px] bg-danger text-[18px] font-semibold text-white disabled:opacity-40"
+              >
+                {deleting ? 'جارٍ الحذف…' : 'حذف'}
+              </button>
+            </div>
+            {deleteNotice && <p className="m-0 mt-[10px] text-[14px] text-danger">{deleteNotice}</p>}
+          </Card>
+
           {notice && <p className="m-0 text-center text-[14px] text-danger">{notice}</p>}
         </div>
       )}
     </Modal>
   )
 }
+
+// الدولة محفوظة برمز ISO (زي التطبيق) — بنعرض الاسم
+const COUNTRY = { PS: 'فلسطين', JO: 'الأردن', SA: 'السعودية', EG: 'مصر', AE: 'الإمارات', QA: 'قطر', KW: 'الكويت', BH: 'البحرين', OM: 'عُمان', LB: 'لبنان', SY: 'سوريا', IQ: 'العراق', YE: 'اليمن', TR: 'تركيا', MA: 'المغرب', DZ: 'الجزائر', TN: 'تونس', LY: 'ليبيا', SD: 'السودان' }
+
+const CATEGORY = { [Category.Umrah]: 'عمرة', [Category.Hajj]: 'حج', [Category.HajjAndUmrah]: 'حج وعمرة' }
+
+const Info = ({ label, value, ltr }) => (
+  <div className="flex min-w-0 flex-col">
+    <dt className="text-[12px] text-muted">{label}</dt>
+    <dd className="m-0 truncate" dir={ltr && value ? 'ltr' : undefined} style={ltr && value ? { textAlign: 'right' } : undefined}>
+      {value || '—'}
+    </dd>
+  </div>
+)
 
 const Card = ({ children, className = '' }) => <div className={`rounded-[16px] border border-line bg-white p-[28px] ${className}`}>{children}</div>
 const Title = ({ children }) => <h3 className="m-0 text-[20px] leading-[30px] font-bold">{children}</h3>
