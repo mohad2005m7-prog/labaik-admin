@@ -1,6 +1,9 @@
 // أرقام وتواريخ بنفس كتابة Figma:
 //   الأعداد بالأرقام العربية (٣٬٧٠٥) — تواريخ الجدول بالأرقام اللاتينية (2026/01/12)
 
+/** الأرقام العربية/الفارسية (٠-٩ / ۰-۹) → لاتينية — كيبورد عربي بيكتب ٥ بدل 5 */
+export const latinDigits = (s) => String(s ?? '').replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+
 export const arNum = (n) => Number(n ?? 0).toLocaleString('ar-EG')
 
 /** "2026-01-12" → "2026/01/12" */

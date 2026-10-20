@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Category, createCompany, YEARLY } from '../../api/admin'
 import { errorText } from '../../api/client'
-import { arNum, dayDiff, plusYear, todayIso } from '../../lib/format'
+import { arNum, dayDiff, latinDigits, plusYear, todayIso } from '../../lib/format'
 import { CheckIcon, CloseIcon, CopyIcon, ImageIcon, SearchIcon } from '../Icons'
 import Modal from '../Modal'
 import { DateInput, Field, FilePicker, PhoneInput, Row, Section, Select, TextInput } from './Fields'
@@ -207,7 +207,7 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
             <Field label="قيمة الاشتراك / السعر">
               <div className="flex items-center gap-[10px]" dir="ltr">
                 <span className="text-[18px] text-muted">SAR</span>
-                <TextInput value={f.price} onChange={(e) => set('price')(e.target.value.replace(/[^\d.]/g, ''))} placeholder="0" inputMode="decimal" />
+                <TextInput value={f.price} onChange={(e) => set('price')(latinDigits(e.target.value).replace('٫', '.').replace(/[^\d.]/g, ''))} placeholder="0" inputMode="decimal" />
               </div>
             </Field>
           </Row>
@@ -227,10 +227,10 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
         <Section number="٣" title="قيود السعة والاستخدام">
           <Row>
             <Field label="الحد الأقصى لعدد المعتمرين">
-              <TextInput value={f.maxPilgrims} onChange={(e) => set('maxPilgrims')(e.target.value.replace(/\D/g, ''))} placeholder="مثال:5000" inputMode="numeric" />
+              <TextInput value={f.maxPilgrims} onChange={(e) => set('maxPilgrims')(latinDigits(e.target.value).replace(/\D/g, ''))} placeholder="مثال:5000" inputMode="numeric" />
             </Field>
             <Field label="الحد الأقصى لعدد المشرفين / الإداريين">
-              <TextInput value={f.maxSupervisors} onChange={(e) => set('maxSupervisors')(e.target.value.replace(/\D/g, ''))} placeholder="مثال:10" inputMode="numeric" />
+              <TextInput value={f.maxSupervisors} onChange={(e) => set('maxSupervisors')(latinDigits(e.target.value).replace(/\D/g, ''))} placeholder="مثال:10" inputMode="numeric" />
             </Field>
           </Row>
         </Section>

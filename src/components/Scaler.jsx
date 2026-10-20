@@ -5,7 +5,8 @@ export default function Scaler({ children }) {
   const scale = useScale()
   const height = Math.max(FRAME_H, window.innerHeight / scale)
   return (
-    <div style={{ zoom: scale, width: FRAME_W, minHeight: height }} className="relative mx-auto font-ar">
+    // لاصقة باليمين (السايدبار عالحافة) — والفاضي لو الشاشة أعرض بيضل يسار
+    <div style={{ zoom: scale, width: FRAME_W, minHeight: height }} className="relative mr-0 ml-auto font-ar">
       {children}
     </div>
   )
