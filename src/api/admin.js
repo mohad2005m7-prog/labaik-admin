@@ -52,7 +52,7 @@ export const isSignedIn = () => Boolean(tokens.get()?.accessToken) && !tokens.ge
 /** دخل بكلمة مرور مؤقتة (حساب الأدمن الأول من الخادم مثلاً) ولسا ما غيّرها */
 export const mustChangePassword = () => Boolean(tokens.get()?.accessToken && tokens.get()?.mustChangePassword)
 
-/** AdminOverviewDto { pendingRequests, activeSubscriptions, subscriptionsExpiringIn30Days, activePilgrims, activeCompanies, totalCompanies } */
+/** AdminOverviewDto { pendingRequests (ملغى — دايماً 0), activeSubscriptions, subscriptionsExpiringIn30Days, activePilgrims, activeCompanies, totalCompanies } */
 export const overview = () => api('/admin/overview')
 
 /** AdminCompanyListItemDto[] { id, name, logoUrl?, activePilgrims, subscriptionStartUtc?, subscriptionEndUtc?, status, daysRemaining? } */
