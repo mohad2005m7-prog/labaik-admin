@@ -99,7 +99,7 @@ export function Select({ value, options, placeholder, onChange }) {
   )
 }
 
-/** ملف من الجهاز (الشعار / العقد) — بنعرض الاسم بس: الخادم لسا ما فيه رفع ملفات */
+/** ملف من الجهاز (الشعار / العقد) — هون بنعرض الاسم بس، والرفع (POST /files) وقت الحفظ */
 export function FilePicker({ accept, fileName, onPick, children }) {
   const id = useId()
   return (

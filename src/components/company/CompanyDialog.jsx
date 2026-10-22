@@ -32,6 +32,8 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
   // الخادم رفض لأن في رحلات جارية → بنعرض «حذف رغم ذلك» (force=true)
   const [needsForce, setNeedsForce] = useState(false)
   const [emailSent, setEmailSent] = useState(null)
+  // إصدار كلمة مؤقتة شغّال — كل إصدار بيلغي اللي قبله، فما بدنا ضغطتين
+  const [issuing, setIssuing] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -50,6 +52,8 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
   }, [id])
 
   async function issue() {
+    if (issuing) return
+    setIssuing(true)
     setNotice('')
     try {
       const r = await issueTempPassword(id)
@@ -57,6 +61,8 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
       setEmailSent(r?.emailSent ?? null)
     } catch (e) {
       setNotice(e.status === 405 ? 'إصدار كلمة مؤقتة غير متاح على الخادم بعد' : errorText(e))
+    } finally {
+      setIssuing(false)
     }
   }
 
@@ -163,11 +169,11 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
                 </div>
               ))}
             </div>
-            {(dto.maxPilgrims || dto.maxSupervisors) && (
+            {dto.maxPilgrims || dto.maxSupervisors ? (
               <Sub>
                 الحد: {dto.maxPilgrims ? `${arNum(dto.maxPilgrims)} معتمر` : '—'} · {dto.maxSupervisors ? `${arNum(dto.maxSupervisors)} مشرف` : '—'}
               </Sub>
-            )}
+            ) : null}
           </Card>
 
           <Card>
@@ -191,8 +197,8 @@ export default function CompanyDialog({ id, onClose, onSaved }) {
                 {password || 'لم تصدر بعد'}
               </div>
               <div className="flex items-center gap-[11px]">
-                <button type="button" onClick={issue} className="h-[54px] w-[128px] rounded-[10px] bg-brand text-[18px] font-semibold text-white">
-                  إصدار
+                <button type="button" onClick={issue} disabled={issuing} className="h-[54px] w-[128px] rounded-[10px] bg-brand text-[18px] font-semibold text-white disabled:opacity-60">
+                  {issuing ? 'لحظة…' : 'إصدار'}
                 </button>
                 <button
                   type="button"

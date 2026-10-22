@@ -6,10 +6,11 @@ import { errorText } from '../api/client'
 // الدخول بحساب دوره Admin (من إعدادات الخادم Admin:Emails)
 // نسيت كلمة المرور: POST /auth/forgot-password ← رمز 6 أرقام بالإيميل ← POST /auth/reset-password
 // كلمة مرور مؤقتة (mustChangePassword — حساب الأدمن الأول من الخادم): لازم يغيّرها قبل اللوحة (POST /auth/change-password)
-//   [forceChange] = فتح الصفحة وهو لسا ما غيّرها (فبنطلب الحالية كمان)
+//   [forceChange] = فتح الصفحة وهو لسا ما غيّرها (فبنطلب الحالية كمان) — أو الخادم رد 403 Auth.PasswordChangeRequired
+//   [notice] = ليش طلع من اللوحة (حساب موقوف / لازم يغيّر كلمة المرور)
 const input = 'h-[52px] rounded-[10px] border border-line px-[16px] text-right text-[16px] outline-none focus:border-brand'
 
-export default function Login({ onSignedIn, forceChange = false }) {
+export default function Login({ onSignedIn, forceChange = false, notice = '' }) {
   const [mode, setMode] = useState(forceChange ? 'change' : 'login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,7 +19,7 @@ export default function Login({ onSignedIn, forceChange = false }) {
   // بنطلب الحالية بس لو ما عرفناها من الدخول (فتح الصفحة وهو لسا ما غيّر المؤقتة)
   const [askCurrent, setAskCurrent] = useState(forceChange)
   const [code, setCode] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState(notice)
   const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
 

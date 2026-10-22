@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { companies as fetchCompanies, isSignedIn, mustChangePassword, overview as fetchOverview, resumeCompany, signOut, stopCompany } from './api/admin'
+import { CompanyStatus, companies as fetchCompanies, isSignedIn, mustChangePassword, overview as fetchOverview, resumeCompany, signOut, stopCompany } from './api/admin'
 import { errorText, tokens } from './api/client'
 import AddCompanyDialog from './components/add/AddCompanyDialog'
 import CompanyDialog from './components/company/CompanyDialog'
@@ -22,6 +22,10 @@ export default function App() {
   const [list, setList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // خطأ الإيقاف / التفعيل — شريط لحاله والجدول بيضل ظاهر
+  const [toggleError, setToggleError] = useState('')
+  // سبب الخروج (حساب موقوف / لازم يغيّر كلمة المرور) — بينعرض بشاشة الدخول
+  const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('all')
   const [busyId, setBusyId] = useState(null)
@@ -44,7 +48,14 @@ export default function App() {
   useEffect(() => {
     if (!signedIn) return
     const timer = setTimeout(load, 0)
-    const out = () => setSignedIn(false)
+    // بعد الخروج ما بدنا النوافذ ترجع تفتح لما يدخل من جديد
+    const out = (e) => {
+      setNotice(e.detail?.code ? errorText(e.detail) : '')
+      setSignedIn(false)
+      setOpenId(null)
+      setAdding(false)
+      setToggleError('')
+    }
     window.addEventListener('labaik:signed-out', out)
     return () => {
       clearTimeout(timer)
@@ -53,23 +64,43 @@ export default function App() {
   }, [signedIn, load])
 
   const shown = useMemo(() => {
-    const q = query.trim()
-    return list.filter((c) => (tab === 'all' || c.status === tab) && (!q || c.name?.includes(q)))
+    // toLowerCase للأسماء اللاتينية (العربي ما بيتأثر)
+    const q = query.trim().toLowerCase()
+    return list.filter((c) => (tab === 'all' || c.status === tab) && (!q || c.name?.toLowerCase().includes(q)))
   }, [list, query, tab])
 
   async function toggle(company, on) {
     setBusyId(company.id)
+    setToggleError('')
     try {
-      await (on ? resumeCompany(company.id) : stopCompany(company.id))
-      await load()
+      const updated = await (on ? resumeCompany(company.id) : stopCompany(company.id))
+      // الصف بيتحدّث فوراً من رد الخادم (AdminCompanyDto — التفعيل ممكن يرجّع «منتهي») والأرقام فوق بالخلفية
+      setList((l) =>
+        l.map((c) =>
+          c.id === company.id ? { ...c, status: updated?.status ?? (on ? CompanyStatus.Active : CompanyStatus.Stopped), daysRemaining: updated?.daysRemaining ?? c.daysRemaining } : c,
+        ),
+      )
+      fetchOverview()
+        .then(setStats)
+        .catch(() => {})
     } catch (e) {
-      setError(errorText(e))
+      setToggleError(errorText(e))
     } finally {
       setBusyId(null)
     }
   }
 
-  if (!signedIn) return <Login forceChange={mustChangePassword()} onSignedIn={() => setSignedIn(true)} />
+  if (!signedIn)
+    return (
+      <Login
+        forceChange={mustChangePassword()}
+        notice={notice}
+        onSignedIn={() => {
+          setNotice('')
+          setSignedIn(true)
+        }}
+      />
+    )
 
   const user = tokens.get()?.user
   return (
@@ -78,14 +109,14 @@ export default function App() {
       <main dir="rtl" className="absolute inset-0">
         <TopBar query={query} onQuery={setQuery} onAdd={() => setAdding(true)} />
         <StatCards data={stats} />
-        <CompaniesPanel companies={shown} tab={tab} onTab={setTab} loading={loading} error={error} onRetry={load} onOpen={(c) => setOpenId(c.id)} onToggle={toggle} busyId={busyId} />
+        <CompaniesPanel companies={shown} tab={tab} onTab={setTab} loading={loading} error={error} onRetry={load} onOpen={(c) => setOpenId(c.id)} onToggle={toggle} busyId={busyId} toggleError={toggleError} onDismissToggleError={() => setToggleError('')} />
         <Sidebar
           active={nav}
           onSelect={setNav}
           ownerName={user?.fullName}
           onSignOut={() => {
             signOut()
-            setSignedIn(false)
+            window.dispatchEvent(new Event('labaik:signed-out'))
           }}
         />
       </main>

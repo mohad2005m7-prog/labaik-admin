@@ -4,14 +4,15 @@ import { BuildingIcon, CardIcon, GearIcon, GridIcon, ListIcon } from '../Icons'
 // السايدبار (Figma: 338×1024 عند x1102، #113A2E):
 //   الشعار 69.36×91 (220,32) + «لبيــك» (115,10 100×103) + «لوحة تحكم المالك» (98,109 119×19)
 //   القائمة 286×374 (34,165): 5 عناصر 62 طول وفراغ 16 — المختار أبيض والنص #113A2E
-//   كرت المالك 304×89 (17,891): أفاتار 54 #B7964F + الاسم والصلاحية
+//   كرت المالك 304×89 (17,891): أفاتار 54 #B7964F + الاسم والصلاحية — الضغط عليه = تسجيل خروج (بتأكيد)
+// العناصر اللي لسا ما إلها صفحة (soon) باهتة ومعطّلة وعليها «قريباً»
 // -------------------------------------------------------------
 const NAV = [
   ['dashboard', 'لوحة التحكم', GridIcon],
-  ['companies', 'الشركات', BuildingIcon],
-  ['subscriptions', 'الاشتراكات', CardIcon],
-  ['log', 'سجل النظام', ListIcon],
-  ['settings', 'الإعدادات', GearIcon],
+  ['companies', 'الشركات', BuildingIcon, true],
+  ['subscriptions', 'الاشتراكات', CardIcon, true],
+  ['log', 'سجل النظام', ListIcon, true],
+  ['settings', 'الإعدادات', GearIcon, true],
 ]
 
 export default function Sidebar({ active, onSelect, ownerName, onSignOut }) {
@@ -24,14 +25,17 @@ export default function Sidebar({ active, onSelect, ownerName, onSignOut }) {
       <div className="absolute top-[109px] left-[98px] w-[119px] text-right text-[14px] leading-[19px] whitespace-nowrap">لوحة تحكم المالك</div>
 
       <nav className="absolute top-[165px] left-[34px] flex w-[286px] flex-col gap-[16px]">
-        {NAV.map(([key, label, Icon]) => {
+        {NAV.map(([key, label, Icon, soon]) => {
           const selected = key === active
           return (
             <button
               key={key}
               type="button"
-              onClick={() => onSelect(key)}
-              className={`flex h-[62px] items-center gap-[12px] rounded-[16px] pr-[38px] text-[20px] ${selected ? 'bg-white text-brand' : 'text-white hover:bg-white/10'}`}
+              // aria-disabled مش disabled: عشان التلميح «قريباً» يبين
+              aria-disabled={soon || undefined}
+              title={soon ? 'قريباً' : undefined}
+              onClick={() => !soon && onSelect(key)}
+              className={`flex h-[62px] items-center gap-[12px] rounded-[16px] pr-[38px] text-[20px] ${selected ? 'bg-white text-brand' : soon ? 'cursor-not-allowed text-white/45' : 'text-white hover:bg-white/10'}`}
             >
               <Icon size={24} />
               <span>{label}</span>
@@ -42,7 +46,7 @@ export default function Sidebar({ active, onSelect, ownerName, onSignOut }) {
 
       <button
         type="button"
-        onClick={onSignOut}
+        onClick={() => window.confirm('تسجيل الخروج من لوحة التحكم؟') && onSignOut()}
         title="تسجيل الخروج"
         className="absolute top-[891px] left-[17px] flex h-[89px] w-[304px] items-center gap-[9px] rounded-[16px] bg-[rgba(238,242,242,0.29)] pr-[10px] text-right"
       >
