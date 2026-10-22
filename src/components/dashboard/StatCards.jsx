@@ -4,13 +4,14 @@ import { arNum } from '../../lib/format'
 // كروت الأرقام (Figma: 260×140، radius 16، padding 18/20، gap 15، ظل 3,4 blur 7.8 #113A32 18%)
 // ⚠️ بـ Figma الصف عرضه 1109 وبيطلع برّا المساحة (آخر كرت مقصوص 33px) — هون نفس الصف بعرض الجدول (1029)
 //    فكل كرت 240 والفراغ 23، ونهايته عند x1075 متل Figma
+// الكرت الرابع بـ Figma «طلبات معلّقة» — الخادم ألغى pendingRequests (دايماً 0)، فبيعرض الاشتراكات اللي بتنتهي قريباً
 // -------------------------------------------------------------
 export default function StatCards({ data }) {
   const cards = [
     ['الشركات المفعّلة', data?.activeCompanies, `من أصل ${arNum(data?.totalCompanies)} شركة`],
     ['المعتمرون النشطون', data?.activePilgrims, 'عبر جميع الشركات المفعّلة'],
-    ['الاشتراكات السارية', data?.activeSubscriptions, `${arNum(data?.subscriptionsExpiringIn30Days)} تنتهي خلال ٣٠ يوماً`],
-    ['طلبات معلّقة', data?.pendingRequests, 'تجديدات وطلبات خدمات'],
+    ['الاشتراكات السارية', data?.activeSubscriptions, 'اشتراكات فعّالة حالياً'],
+    ['تنتهي قريباً', data?.subscriptionsExpiringIn30Days, 'اشتراكات تنتهي خلال ٣٠ يوماً'],
   ]
   return (
     <div className="absolute top-[151px] left-[46px] flex h-[140px] w-[1029px] gap-[23px]">

@@ -3,7 +3,8 @@ import { useScale } from '../lib/scale'
 
 // نافذة فوق اللوحة: رأس ثابت + محتوى بيسكرول + أسفل ثابت (FIXED / SCROLLS بـ Figma)
 // [width] بأرقام Figma — والارتفاع على قد الشاشة
-export default function Modal({ width, header, footer, children, onClose, radius = 0 }) {
+// [closeOnBackdrop] false = الضغط برّا النافذة ما بيسكّرها (نموذج طويل ما بدنا يضيع بضغطة غلط)
+export default function Modal({ width, header, footer, children, onClose, radius = 0, closeOnBackdrop = true }) {
   const scale = useScale()
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -12,7 +13,7 @@ export default function Modal({ width, header, footer, children, onClose, radius
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onMouseDown={(e) => closeOnBackdrop && e.target === e.currentTarget && onClose()}>
       <div
         style={{ zoom: scale, width, maxHeight: `calc(${100 / scale}vh - 40px)`, borderRadius: radius }}
         className="flex flex-col overflow-hidden bg-white font-ar shadow-2xl"

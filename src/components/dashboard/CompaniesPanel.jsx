@@ -1,10 +1,12 @@
 import { CompanyStatus } from '../../api/admin'
+import { CloseIcon } from '../Icons'
 import CompanyRow from './CompanyRow'
 
 // -------------------------------------------------------------
 // «إدارة الشركات» (Figma: 1038×687 عند 46,319 — أبيض radius 16):
 //   الرأس 992×39 (24,31): العنوان 24 Bold + تبويبات 97×39 (فراغ 11) — المختار #113A2E والباقي #EEF2F2 / #717171
 //   عناوين الأعمدة 18 #717171 (y99) — الصفوف 991 عرض من (25,154): 81 طول وفراغ 25
+// [toggleError] خطأ الإيقاف / التفعيل: شريط تحت بينسكّر، والجدول بيضل ظاهر ([error] بس لخطأ التحميل)
 // -------------------------------------------------------------
 const TABS = [
   ['all', 'الكل'],
@@ -13,7 +15,7 @@ const TABS = [
   [CompanyStatus.Expired, 'منتهي'],
 ]
 
-export default function CompaniesPanel({ companies, tab, onTab, loading, error, onRetry, onOpen, onToggle, busyId }) {
+export default function CompaniesPanel({ companies, tab, onTab, loading, error, onRetry, onOpen, onToggle, busyId, toggleError, onDismissToggleError }) {
   return (
     <section className="absolute top-[319px] left-[46px] h-[687px] w-[1038px] rounded-[16px] bg-white shadow-card">
       <div className="absolute top-[31px] left-[24px] flex h-[39px] w-[992px] items-center justify-between">
@@ -60,6 +62,15 @@ export default function CompaniesPanel({ companies, tab, onTab, loading, error, 
           </div>
         )}
       </div>
+
+      {toggleError && (
+        <div role="alert" className="absolute bottom-[16px] left-1/2 z-10 flex min-h-[48px] w-max max-w-[900px] -translate-x-1/2 items-center gap-[12px] rounded-[12px] bg-badBg py-[8px] pr-[20px] pl-[10px] text-[16px] text-dangerText shadow-card">
+          <span>{toggleError}</span>
+          <button type="button" onClick={onDismissToggleError} aria-label="إغلاق" className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-[8px] hover:bg-black/5">
+            <CloseIcon size={18} />
+          </button>
+        </div>
+      )}
     </section>
   )
 }

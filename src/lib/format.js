@@ -32,4 +32,7 @@ export function plusYear(date) {
   return d.toISOString().slice(0, 10)
 }
 
-export const todayIso = () => new Date().toISOString().slice(0, 10)
+/** تاريخ اليوم "2026-01-12" بتوقيت الجهاز (toISOString بيرجع UTC — بعد نص الليل عندنا كان يطلع امبارح) */
+export function todayIso(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}

@@ -1,15 +1,17 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
 // أثناء التطوير: /api و /hubs بيمرّوا لسيرفر لبيك (بدون مشكلة CORS بالمتصفح)
-const server = 'https://labaik-api.onrender.com'
-
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  server: {
-    proxy: {
-      '/api': { target: server, changeOrigin: true, secure: true },
+// LABAIK_API=http://localhost:5000 npm run dev → على سيرفر محلي بدل سيرفر Render الحقيقي
+export default defineConfig(({ mode }) => {
+  const server = loadEnv(mode, '.', 'LABAIK_').LABAIK_API || 'https://labaik-api.onrender.com'
+  return {
+    plugins: [react(), tailwindcss()],
+    server: {
+      proxy: {
+        '/api': { target: server, changeOrigin: true, secure: true },
+      },
     },
-  },
+  }
 })

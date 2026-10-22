@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Category, createCompany, YEARLY } from '../../api/admin'
-import { errorText } from '../../api/client'
+import { errorText, upload } from '../../api/client'
 import { arNum, dayDiff, latinDigits, plusYear, todayIso } from '../../lib/format'
 import { CheckIcon, CloseIcon, CopyIcon, ImageIcon, SearchIcon } from '../Icons'
 import Modal from '../Modal'
@@ -13,8 +13,9 @@ import { DateInput, Field, FilePicker, PhoneInput, Row, Section, Select, TextInp
 //   name · commercialRegistrationNumber · contactFullName · ownerEmail مطلوبين
 //   ownerEmail = «البريد الإلكتروني الرسمي» (هو اللي بيوصله إيميل الدخول وكلمة المرور المؤقتة من الخادم)
 //   الدولة برمز ISO (زي التطبيق) ومفتاح الهاتف حسبها
-//   temporaryPassword / forcePasswordChange / sendCredentialsByEmail بينبعتوا — الخادم لسا ما بيقرأهم (ملف إبراهيم بند 2)
-//   فلحد ما يدعمهم: الكلمة الصالحة هي اللي بيبعتها الخادم على البريد (مكتوب تحت الحقل)
+//   temporaryPassword (الكلمة المولّدة هون) / forcePasswordChange / sendCredentialsByEmail — الخادم بيستعملهم لحساب المالك الجديد
+//   والرد فيه temporaryPassword مرة وحدة — لو null فالبريد مسجّل من قبل والمالك بيدخل بكلمته الحالية
+//   الشعار والعقد بينرفعوا أول (POST /files) وبينبعت رابطهم logoUrl / contractFileUrl
 // الاشتراك سنوي: النهاية = البداية + سنة
 // -------------------------------------------------------------
 const CATEGORIES = [
@@ -68,17 +69,39 @@ const empty = () => ({
   sendEmail: true,
 })
 
-function generatePassword() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789+#@!'
-  const bytes = crypto.getRandomValues(new Uint32Array(12))
-  return Array.from(bytes, (b) => chars[b % chars.length]).join('')
+// شروط ASP.NET Identity الافتراضية على الخادم: 8 على الأقل وفيها حرف كبير وصغير ورقم ورمز
+// بنضمن واحد من كل نوع، والباقي عشوائي، وبعدين بنخلطهم (Fisher–Yates بعشوائية crypto)
+const PASSWORD_SETS = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnpqrstuvwxyz', '23456789', '+#@!']
+
+function generatePassword(length = 12) {
+  const random = (n) => crypto.getRandomValues(new Uint32Array(1))[0] % n
+  const pick = (set) => set[random(set.length)]
+  const all = PASSWORD_SETS.join('')
+  const chars = [...PASSWORD_SETS.map(pick), ...Array.from({ length: length - PASSWORD_SETS.length }, () => pick(all))]
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = random(i + 1)
+    const t = chars[i]
+    chars[i] = chars[j]
+    chars[j] = t
+  }
+  return chars.join('')
+}
+
+/** السعر: أرقام ونقطة عشرية وحدة بس (٫ العربية = نقطة) */
+function priceText(value) {
+  const [whole, ...rest] = latinDigits(value).replace(/٫/g, '.').replace(/[^\d.]/g, '').split('.')
+  return rest.length ? `${whole}.${rest.join('')}` : whole
 }
 
 export default function AddCompanyDialog({ onClose, onCreated }) {
   const [f, setF] = useState(empty)
+  // القيم الأولى — عشان نعرف إذا كتب إشي قبل ما نسكّر النافذة
+  const [initial] = useState(empty)
   const [password, setPassword] = useState(generatePassword)
-  const [logoName, setLogoName] = useState('')
-  const [contractName, setContractName] = useState('')
+  const [logo, setLogo] = useState(null)
+  const [contract, setContract] = useState(null)
+  // الشركة انضافت بس البريد كان مسجّل (ما انعملت كلمة مؤقتة) — بنوضّح قبل ما نسكّر
+  const [linkedNotice, setLinkedNotice] = useState(false)
   const [tried, setTried] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -86,6 +109,12 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
 
   const end = f.start ? plusYear(f.start) : ''
   const daysLeft = end ? dayDiff(new Date(), end) : null
+  const dirty = Boolean(logo || contract) || Object.keys(initial).some((k) => f[k] !== initial[k])
+  // النموذج طويل: الضغط برّا النافذة ما بيسكّرها، و Esc / إغلاق / إلغاء بيسألوا قبل ما يضيع المكتوب
+  function close() {
+    if (linkedNotice) onCreated()
+    else if (!dirty || window.confirm('إغلاق النموذج؟ ستضيع البيانات المدخلة.')) onClose()
+  }
   const missing = { name: !f.name.trim(), registration: !f.registration.trim(), contactName: !f.contactName.trim(), officialEmail: !/^\S+@\S+\.\S+$/.test(f.officialEmail) }
 
   async function submit() {
@@ -95,13 +124,15 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
       setError('أكمل الحقول المطلوبة')
       return
     }
-    const num = (v) => (String(v).trim() === '' ? null : Number(v))
+    // فاضي أو مش رقم (زي «.» لحالها) → null، عمرنا ما بنبعت NaN
+    const num = (v) => (String(v).trim() === '' || !Number.isFinite(Number(v)) ? null : Number(v))
     const dial = COUNTRIES.find(([code]) => code === f.country)?.[2] ?? '+966'
     // الرقم بلا صفر البداية (05x → 5x) بعد مفتاح الدولة
     const phone = (v) => (v.trim() ? `${dial}${v.replace(/\s/g, '').replace(/^0+/, '')}` : null)
     setSaving(true)
     try {
-      await createCompany({
+      const [logoUrl, contractFileUrl] = await Promise.all([logo ? upload(logo) : null, contract ? upload(contract) : null])
+      const created = await createCompany({
         name: f.name.trim(),
         commercialRegistrationNumber: f.registration.trim(),
         contactFullName: f.contactName.trim(),
@@ -121,10 +152,17 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
         maxPilgrims: num(f.maxPilgrims),
         contactJobTitle: f.jobTitle.trim() || null,
         contactMobile: phone(f.mobile),
+        logoUrl,
+        contractFileUrl,
         temporaryPassword: password,
         forcePasswordChange: f.forceChange,
         sendCredentialsByEmail: f.sendEmail,
       })
+      if (created && !created.temporaryPassword) {
+        setLinkedNotice(true)
+        setSaving(false)
+        return
+      }
       onCreated()
     } catch (e) {
       setError(errorText(e))
@@ -138,14 +176,14 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
         <h1 className="m-0 text-[32px] leading-[46px] font-bold">إضافة شركة جديدة</h1>
         <p className="m-0 mt-[8px] text-[20px] leading-[30px]">أدخل بيانات الشركة والعقد الجديد لربطها بلوحة التحكم.</p>
       </div>
-      <button type="button" onClick={onClose} aria-label="إغلاق" className="absolute top-[62px] left-[91px] flex h-[63px] w-[63px] items-center justify-center rounded-[12px] border-[1.5px] border-white">
+      <button type="button" onClick={close} aria-label="إغلاق" className="absolute top-[62px] left-[91px] flex h-[63px] w-[63px] items-center justify-center rounded-[12px] border-[1.5px] border-white">
         <CloseIcon size={26} />
       </button>
     </header>
   )
 
   return (
-    <Modal width={1217} header={header} onClose={onClose} radius={16}>
+    <Modal width={1217} header={header} onClose={close} closeOnBackdrop={false} radius={16}>
       <div className="flex flex-col gap-[40px] px-[24px] pt-[33px]">
         <Section number="١" title="المعلومات الأساسية للشركة">
           <Field label="اسم الشركة" className="w-full">
@@ -156,7 +194,7 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
           </Field>
 
           <Field label="شعار الشركة" className="w-full">
-            <FilePicker accept="image/png,image/jpeg" fileName={logoName} onPick={(file) => setLogoName(file?.name ?? '')}>
+            <FilePicker accept="image/png,image/jpeg,image/webp" fileName={logo?.name ?? ''} onPick={setLogo}>
               {(inputId, name) => (
                 <div className="flex h-[140px] items-center justify-between rounded-[12px] border border-[#D9D9D9] px-[12px]">
                   <div className="flex items-center gap-[20px]">
@@ -165,7 +203,7 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
                     </span>
                     <span className="flex flex-col gap-[8px]">
                       <span className="text-[16px]">{name || 'اسحب الشعار وأفلته هنا، أو اخترها من جهازك'}</span>
-                      <span className="text-[14px]">PNG أو JPG، حتى ٢ ميجابايت</span>
+                      <span className="text-[14px]">PNG أو JPG أو WEBP، حتى ٥ ميجابايت</span>
                     </span>
                   </div>
                   <label htmlFor={inputId} className="ml-[56px] flex h-[51px] w-[159px] cursor-pointer items-center justify-center rounded-[10px] border border-line bg-white text-[16px]">
@@ -207,7 +245,7 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
             <Field label="قيمة الاشتراك / السعر">
               <div className="flex items-center gap-[10px]" dir="ltr">
                 <span className="text-[18px] text-muted">SAR</span>
-                <TextInput value={f.price} onChange={(e) => set('price')(latinDigits(e.target.value).replace('٫', '.').replace(/[^\d.]/g, ''))} placeholder="0" inputMode="decimal" />
+                <TextInput value={f.price} onChange={(e) => set('price')(priceText(e.target.value))} placeholder="0" inputMode="decimal" />
               </div>
             </Field>
           </Row>
@@ -245,7 +283,7 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
             </Field>
           </Row>
           <Field label="ملف العقد المبرم (PDF)" className="w-full">
-            <FilePicker accept="application/pdf" fileName={contractName} onPick={(file) => setContractName(file?.name ?? '')}>
+            <FilePicker accept="application/pdf" fileName={contract?.name ?? ''} onPick={setContract}>
               {(inputId, name) => (
                 <div className="flex h-[56px] items-center justify-between rounded-[10px] bg-white px-[16px] text-[16px]">
                   <span className={name ? '' : 'text-hint'}>{name || 'لم يتم اختيار الملف'}</span>
@@ -294,9 +332,6 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
             </div>
             <span className="text-[22px]">قوية جداً</span>
           </div>
-          <p className="m-0 text-[16px] leading-[26px] text-muted">
-            ملاحظة: الخادم حالياً يولّد كلمة مرور خاصة به ويرسلها إلى البريد الرسمي للشركة، فالكلمة الصالحة هي التي تصل على البريد إلى أن يدعم الخادم الكلمة المكتوبة هنا.
-          </p>
           <div className="mt-[20px] flex flex-col gap-[16px] text-[20px]">
             <Check checked={f.forceChange} onChange={set('forceChange')}>
               إجبار الشركة على تغيير كلمة المرور فور أول تسجيل دخول
@@ -308,15 +343,28 @@ export default function AddCompanyDialog({ onClose, onCreated }) {
         </Section>
 
         {error && <p className="m-0 text-center text-[18px] text-danger">{error}</p>}
+        {linkedNotice && (
+          <p className="m-0 text-center text-[18px] text-okText">
+            تمت إضافة الشركة. البريد الرسمي مسجّل مسبقاً في لبيك، فسيدخل المالك بكلمة مروره الحالية (لم تُستخدم الكلمة المؤقتة).
+          </p>
+        )}
 
-        <div className="flex gap-[8px] pr-[45px] pb-[40px] pl-[41px]">
-          <button type="button" disabled={saving} onClick={submit} className="h-[90px] flex-1 rounded-[12px] bg-brand text-[32px] font-bold text-white disabled:opacity-60">
-            {saving ? 'جارٍ الحفظ…' : 'حفظ وإضافة الشركة'}
-          </button>
-          <button type="button" onClick={onClose} className="h-[90px] w-[147px] rounded-[12px] border border-line bg-white text-[24px] text-muted">
-            إلغاء
-          </button>
-        </div>
+        {linkedNotice ? (
+          <div className="flex gap-[8px] pr-[45px] pb-[40px] pl-[41px]">
+            <button type="button" onClick={onCreated} className="h-[90px] flex-1 rounded-[12px] bg-brand text-[32px] font-bold text-white">
+              تم
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-[8px] pr-[45px] pb-[40px] pl-[41px]">
+            <button type="button" disabled={saving} onClick={submit} className="h-[90px] flex-1 rounded-[12px] bg-brand text-[32px] font-bold text-white disabled:opacity-60">
+              {saving ? 'جارٍ الحفظ…' : 'حفظ وإضافة الشركة'}
+            </button>
+            <button type="button" onClick={close} className="h-[90px] w-[147px] rounded-[12px] border border-line bg-white text-[24px] text-muted">
+              إلغاء
+            </button>
+          </div>
+        )}
       </div>
     </Modal>
   )
