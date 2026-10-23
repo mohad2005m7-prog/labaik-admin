@@ -3,15 +3,15 @@ import { PlusIcon, SearchIcon } from '../Icons'
 
 // -------------------------------------------------------------
 // رأس الصفحة (Figma):
-//   الترحيب 383×63 (693,49) — العنوان 26 Bold + سطر التاريخ 15
+//   الترحيب 383×63 (693,49) — العنوان 26 Bold + سطر التاريخ 15 (صفحة الشركات: «إدارة الشركات» + وصفها بنفس المكان)
 //   البحث + إضافة شركة 509×48 (46,68): الزر 182×48 #113A2E — فراغ 11 — البحث 316×48
 // -------------------------------------------------------------
-export default function TopBar({ query, onQuery, onAdd }) {
+export default function TopBar({ query, onQuery, onAdd, title = 'مرحباً بك في لوحة لبيك', subtitle = `${todayLine()}، نظرة عامة على الشركات والاشتراكات` }) {
   return (
     <>
       <div className="absolute top-[49px] left-[693px] flex h-[63px] w-[383px] flex-col items-end justify-between text-right">
-        <h1 className="m-0 text-[26px] leading-[34px] font-bold whitespace-nowrap">مرحباً بك في لوحة لبيك</h1>
-        <p className="m-0 text-[15px] leading-[22px] whitespace-nowrap">{todayLine()}، نظرة عامة على الشركات والاشتراكات</p>
+        <h1 className="m-0 text-[26px] leading-[34px] font-bold whitespace-nowrap">{title}</h1>
+        <p className="m-0 text-[15px] leading-[22px] whitespace-nowrap">{subtitle}</p>
       </div>
 
       <div className="absolute top-[68px] left-[46px] flex h-[48px] w-[509px] flex-row-reverse items-stretch gap-[11px]" dir="ltr">
