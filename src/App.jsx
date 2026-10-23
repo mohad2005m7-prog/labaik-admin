@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CompanyStatus, companies as fetchCompanies, isSignedIn, mustChangePassword, overview as fetchOverview, resumeCompany, signOut, stopCompany } from './api/admin'
 import { errorText, tokens } from './api/client'
 import AddCompanyDialog from './components/add/AddCompanyDialog'
+import CompaniesTable from './components/companies/CompaniesTable'
+import CompanyCountCards from './components/companies/CompanyCountCards'
 import CompanyDialog from './components/company/CompanyDialog'
 import CompaniesPanel from './components/dashboard/CompaniesPanel'
 import Sidebar from './components/dashboard/Sidebar'
@@ -14,6 +16,8 @@ import Scaler from './components/Scaler'
 // لوحة المالك (Figma «الداشبورد» 830:4308 — 1440×1024):
 //   البيانات من الخادم: GET /admin/overview + GET /admin/companies
 //   المفتاح بالصف = إيقاف / تفعيل (POST .../stop · .../resume) — العين = تفاصيل الشركة
+//   صفحتين: «لوحة التحكم» (الأرقام العامة + الجدول بتبويبات) و«الشركات» (عدّادات الحالات + الجدول بصفحات من ٥)
+//   نفس القائمة ونفس البحث والنوافذ للصفحتين
 // -------------------------------------------------------------
 export default function App() {
   const [signedIn, setSignedIn] = useState(isSignedIn)
@@ -28,6 +32,7 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('all')
+  const [page, setPage] = useState(0)
   const [busyId, setBusyId] = useState(null)
   const [openId, setOpenId] = useState(null)
   const [adding, setAdding] = useState(false)
@@ -63,11 +68,18 @@ export default function App() {
     }
   }, [signedIn, load])
 
-  const shown = useMemo(() => {
-    // toLowerCase للأسماء اللاتينية (العربي ما بيتأثر)
+  // البحث (للصفحتين) — toLowerCase للأسماء اللاتينية (العربي ما بيتأثر)
+  const searched = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return list.filter((c) => (tab === 'all' || c.status === tab) && (!q || c.name?.toLowerCase().includes(q)))
-  }, [list, query, tab])
+    return q ? list.filter((c) => c.name?.toLowerCase().includes(q)) : list
+  }, [list, query])
+  const shown = useMemo(() => searched.filter((c) => tab === 'all' || c.status === tab), [searched, tab])
+
+  // بحث جديد → أول صفحة
+  function search(value) {
+    setQuery(value)
+    setPage(0)
+  }
 
   async function toggle(company, on) {
     setBusyId(company.id)
@@ -107,9 +119,19 @@ export default function App() {
     <>
     <Scaler>
       <main dir="rtl" className="absolute inset-0">
-        <TopBar query={query} onQuery={setQuery} onAdd={() => setAdding(true)} />
-        <StatCards data={stats} />
-        <CompaniesPanel companies={shown} tab={tab} onTab={setTab} loading={loading} error={error} onRetry={load} onOpen={(c) => setOpenId(c.id)} onToggle={toggle} busyId={busyId} toggleError={toggleError} onDismissToggleError={() => setToggleError('')} />
+        {nav === 'companies' ? (
+          <>
+            <TopBar title="إدارة الشركات" subtitle="عرض وإدارة الشركات المتعاقدة مع لبيك" query={query} onQuery={search} onAdd={() => setAdding(true)} />
+            <CompanyCountCards companies={list} loaded={!loading && !error} />
+            <CompaniesTable companies={searched} page={page} onPage={setPage} loading={loading} error={error} onRetry={load} onOpen={(c) => setOpenId(c.id)} onToggle={toggle} busyId={busyId} toggleError={toggleError} onDismissToggleError={() => setToggleError('')} />
+          </>
+        ) : (
+          <>
+            <TopBar query={query} onQuery={search} onAdd={() => setAdding(true)} />
+            <StatCards data={stats} />
+            <CompaniesPanel companies={shown} tab={tab} onTab={setTab} loading={loading} error={error} onRetry={load} onOpen={(c) => setOpenId(c.id)} onToggle={toggle} busyId={busyId} toggleError={toggleError} onDismissToggleError={() => setToggleError('')} />
+          </>
+        )}
         <Sidebar
           active={nav}
           onSelect={setNav}

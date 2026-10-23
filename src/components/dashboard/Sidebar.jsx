@@ -9,7 +9,7 @@ import { BuildingIcon, CardIcon, GearIcon, GridIcon, ListIcon } from '../Icons'
 // -------------------------------------------------------------
 const NAV = [
   ['dashboard', 'لوحة التحكم', GridIcon],
-  ['companies', 'الشركات', BuildingIcon, true],
+  ['companies', 'الشركات', BuildingIcon],
   ['subscriptions', 'الاشتراكات', CardIcon, true],
   ['log', 'سجل النظام', ListIcon, true],
   ['settings', 'الإعدادات', GearIcon, true],

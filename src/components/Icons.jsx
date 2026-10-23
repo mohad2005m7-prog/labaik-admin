@@ -109,3 +109,42 @@ export const CheckIcon = (p) => (
     <path d="m5 12 5 5 9-10" />
   </Svg>
 )
+
+export const ChevronLeft = (p) => (
+  <Svg {...p}>
+    <path d="m15 6-6 6 6 6" />
+  </Svg>
+)
+
+export const ChevronRight = (p) => (
+  <Svg {...p}>
+    <path d="m9 6 6 6-6 6" />
+  </Svg>
+)
+
+// أيقونات كروت «إدارة الشركات» (Figma: صح مزدوج رمادي · دائرة صح خضرا · دائرة ممنوع حمرا · دائرة برتقالية)
+export const DoubleCheckIcon = (p) => (
+  <Svg {...p}>
+    <path d="m2 13 4 4 8-9M10 15.5l1.5 1.5 8-9" strokeWidth="2.2" />
+  </Svg>
+)
+
+export const CheckCircleIcon = ({ size = 24, className }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <circle cx="12" cy="12" r="10" fill="currentColor" />
+    <path d="m7.5 12.2 3 3 6-6.4" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+export const BanIcon = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" strokeWidth="2.4" />
+    <path d="m5.6 5.6 12.8 12.8" strokeWidth="2.4" />
+  </Svg>
+)
+
+export const RingIcon = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.5" strokeWidth="4" />
+  </Svg>
+)
